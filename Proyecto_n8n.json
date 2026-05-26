@@ -1,0 +1,1036 @@
+{
+  "name": "Proyecto_n8n",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "justificacion-inasistencia",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1216,
+        288
+      ],
+      "id": "48b142f6-320d-4fd8-aaf6-deb071ac73ed",
+      "name": "Webhook1",
+      "webhookId": "0e0db6af-ba64-4d04-91ab-e057c2e017fa"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Analiza la siguiente solicitud de inasistencia evaluando la consistencia entre los datos del formulario y la imagen adjunta:\n\n- Alumno: {{ $json.body[\"Nombre completo\"] }}\n- Motivo: {{ $json.body[\"Motivo de inasistencia\"] }}\n- Descripción: {{ $json.body[\"Descripción del motivo\"] }}\n\nDevuelve únicamente un objeto JSON con la siguiente estructura, sin agregar texto markdown, bloques de código (```json), ni introducciones:\n{\"veredicto\": \"Aprobado o Rechazado o Dudoso\", \"nivel_confianza\": 85, \"razon\": \"Breve explicación del veredicto\"}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=Valida el documento adjunto del estudiante."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "messageType": "imageBinary",
+              "binaryImageDataKey": "adjunto"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -976,
+        288
+      ],
+      "id": "49229506-77a6-47eb-b6f3-c96a22ba42d4",
+      "name": "Basic LLM Chain1",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -976,
+        512
+      ],
+      "id": "7fc19d6b-9988-4016-a2d0-6d2cfd04c85a",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "NWzOmTliT3SASHsS",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 1. Capturamos la respuesta de la IA\nlet textoIA = $input.item.json.text || $input.item.json.output || \"\";\n\n// 2. Si ya es un objeto directo, lo estandarizamos\nif (typeof textoIA === 'object') {\n  return {\n    veredicto: textoIA.veredicto || \"Dudoso\",\n    nivel_confianza: parseFloat(textoIA.nivel_confianza || 0),\n    razon: textoIA.razon || \"Sin detalles\"\n  };\n}\n\n// 3. Limpieza de bloques de código markdown y espacios\ntextoIA = textoIA.trim();\ntextoIA = textoIA.replace(/^```json\\s*/i, \"\").replace(/```$/, \"\").trim();\n\n// 4. Si quedó vacío, devolvemos un estado seguro para el Switch (caerá en revisión manual)\nif (!textoIA) {\n  return {\n    veredicto: \"Dudoso\",\n    nivel_confianza: 0,\n    razon: \"El nodo de la IA no generó texto procesable.\"\n  };\n}\n\n// 5. Parseo seguro a JSON\ntry {\n  let datosParseados = JSON.parse(textoIA);\n  return {\n    veredicto: datosParseados.veredicto || \"Dudoso\",\n    nivel_confianza: parseFloat(datosParseados.nivel_confianza || 0),\n    razon: datosParseados.razon || \"Sin detalles\"\n  };\n} catch (e) {\n  // Intento de rescate si la IA metió texto plano decorativo alrededor del JSON\n  try {\n    let inicioJSON = textoIA.indexOf('{');\n    let finJSON = textoIA.lastIndexOf('}');\n    if (inicioJSON !== -1 && finJSON !== -1) {\n      let jsonLimpio = textoIA.substring(inicioJSON, finJSON + 1);\n      let datosParseadosMano = JSON.parse(jsonLimpio);\n      return {\n        veredicto: datosParseadosMano.veredicto || \"Dudoso\",\n        nivel_confianza: parseFloat(datosParseadosMano.nivel_confianza || 0),\n        razon: datosParseadosMano.razon || \"Sin detalles\"\n      };\n    }\n  } catch (err) {}\n\n  // Si fallan todos los rescates, enviamos un estado seguro\n  return {\n    veredicto: \"Dudoso\",\n    nivel_confianza: 0,\n    razon: \"Error de formato en la respuesta de la IA: \" + textoIA\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -624,
+        288
+      ],
+      "id": "ea9303d0-abdd-4bc8-a4ff-11057f463cfb",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "096d6b41-4574-405c-a666-2248b1234042",
+                    "leftValue": "={{ $json.nivel_confianza }}",
+                    "rightValue": 80,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e87d42c6-5ea3-4c15-841b-4b0cb4c18168",
+                    "leftValue": "={{ $json.nivel_confianza }}",
+                    "rightValue": 80,
+                    "operator": {
+                      "type": "number",
+                      "operation": "lte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "479eb447-fc45-4147-9847-92ea134665cb",
+                    "leftValue": "={{ $json.nivel_confianza }}",
+                    "rightValue": 40,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -400,
+        272
+      ],
+      "id": "67465c4e-3094-49e0-acf9-971f99120acb",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "chatId": "6878861034",
+        "text": "=Hola, tu solicitud de justificación ha sido procesada automáticamente.  Veredicto: {{ $json.estado }} Razón: {{ $json.observaciones }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "34468228-e0f5-4911-b79f-dafbac874334",
+      "name": "Send a text message",
+      "webhookId": "f5ffb31d-ff02-444b-a4b9-4a0e6a832da2",
+      "credentials": {
+        "telegramApi": {
+          "id": "A4V1R1OxwGXvPEZG",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6878861034",
+        "text": "=⚠️ ALERTA: Se requiere revisión manual.\nEl alumno {{ $('Webhook1').item.json.body['Nombre completo'] }} subió una justificación pero el sistema determinó duda.\nRazón de la IA: {{ $json.observaciones }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        224
+      ],
+      "id": "ed31163b-dbfe-473a-9796-4238c779cafe",
+      "name": "Send a text message1",
+      "webhookId": "f5ffb31d-ff02-444b-a4b9-4a0e6a832da2",
+      "credentials": {
+        "telegramApi": {
+          "id": "A4V1R1OxwGXvPEZG",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "6878861034",
+        "text": "=Hola. Tu solicitud de justificación ha sido rechazada automáticamente por el sistema debido a que la documentación adjunta no es legible, no coincide con los datos ingresados o no cumple con los requisitos mínimos. Por favor, vuelve a iniciar el proceso con un comprobante válido.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        448
+      ],
+      "id": "de0c9067-a598-4214-bd3f-f18229a8b8c3",
+      "name": "Send a text message2",
+      "webhookId": "f5ffb31d-ff02-444b-a4b9-4a0e6a832da2",
+      "credentials": {
+        "telegramApi": {
+          "id": "A4V1R1OxwGXvPEZG",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w",
+          "mode": "list",
+          "cachedResultName": "Proyecto n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "observaciones": "={{ $('Code in JavaScript1').item.json.razon }}",
+            "estado": "={{ $('Code in JavaScript1').item.json.veredicto }}",
+            "nombre": "={{ $('Webhook1').item.json.body['Nombre completo'] }}",
+            "descripcion": "={{ $('Webhook1').item.json.body['Descripción del motivo'] }}",
+            "motivo": "={{ $('Webhook1').item.json.body['Motivo de inasistencia'] }}",
+            "fecha": "={{ $('Webhook1').item.json.body.fecha }}",
+            "telegram_ID": "={{ $('Webhook1').item.json.body.telegram_id }}",
+            "correo": "={{ $('Webhook1').item.json.body.correo }}",
+            "estudiante_ID": "={{ $('Webhook1').item.json.body.estudiante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estudiante_ID",
+              "displayName": "estudiante_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "correo",
+              "displayName": "correo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegram_ID",
+              "displayName": "telegram_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descripcion",
+              "displayName": "descripcion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "observaciones",
+              "displayName": "observaciones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        0
+      ],
+      "id": "79f4382a-0c9c-4b5c-ae68-eaa5ed246356",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7vkpQBgp7NFRXKHa",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w",
+          "mode": "list",
+          "cachedResultName": "Proyecto n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "observaciones": "={{ $json.razon }}",
+            "estado": "=En revisión",
+            "nombre": "={{ $('Webhook1').item.json.body['Nombre completo'] }}",
+            "descripcion": "={{ $('Webhook1').item.json.body['Descripción del motivo'] }}",
+            "motivo": "={{ $('Webhook1').item.json.body['Motivo de inasistencia'] }}",
+            "fecha": "={{ $('Webhook1').item.json.body.fecha }}",
+            "telegram_ID": "={{ $('Webhook1').item.json.body.telegram_id }}",
+            "correo": "={{ $('Webhook1').item.json.body.correo }}",
+            "estudiante_ID": "={{ $('Webhook1').item.json.body.estudiante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estudiante_ID",
+              "displayName": "estudiante_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "correo",
+              "displayName": "correo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegram_ID",
+              "displayName": "telegram_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descripcion",
+              "displayName": "descripcion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "observaciones",
+              "displayName": "observaciones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        224
+      ],
+      "id": "bbf8c393-a378-48e1-88c7-3ab505b5320f",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7vkpQBgp7NFRXKHa",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w",
+          "mode": "list",
+          "cachedResultName": "Proyecto n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "observaciones": "=Documentación ilegible o inconsistente con la solicitud.",
+            "estado": "=Rechazado (Baja Confianza)",
+            "nombre": "={{ $('Webhook1').item.json.body['Nombre completo'] }}",
+            "descripcion": "={{ $('Webhook1').item.json.body['Descripción del motivo'] }}",
+            "motivo": "={{ $('Webhook1').item.json.body['Motivo de inasistencia'] }}",
+            "fecha": "={{ $('Webhook1').item.json.body.fecha }}",
+            "telegram_ID": "={{ $('Webhook1').item.json.body.telegram_id }}",
+            "correo": "={{ $('Webhook1').item.json.body.correo }}",
+            "estudiante_ID": "={{ $('Webhook1').item.json.body.estudiante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estudiante_ID",
+              "displayName": "estudiante_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "correo",
+              "displayName": "correo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegram_ID",
+              "displayName": "telegram_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descripcion",
+              "displayName": "descripcion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "observaciones",
+              "displayName": "observaciones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        448
+      ],
+      "id": "7a67825f-55f8-4bc5-835b-f27db184c5e2",
+      "name": "Append row in sheet2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7vkpQBgp7NFRXKHa",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1200,
+        896
+      ],
+      "id": "5e7fc4d0-51ee-4250-ad0e-e66722f06dca",
+      "name": "Telegram Trigger",
+      "webhookId": "062068d5-693a-4228-997c-06c863cb77a7",
+      "credentials": {
+        "telegramApi": {
+          "id": "A4V1R1OxwGXvPEZG",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "=solicitud {{ $json.message.text }}",
+                    "rightValue": "hola",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "7e7811e3-14a2-41ac-88f6-7afc83e71c97"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "bf3fab33-df4d-40ac-a6ec-9179c3c8e856",
+                    "leftValue": "={{ $json.message.text }}",
+                    "rightValue": "^\\d+$",
+                    "operator": {
+                      "type": "string",
+                      "operation": "regex"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -992,
+        896
+      ],
+      "id": "a32e4c93-0351-4187-ba85-8e5473391732",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "chatId": "=6878861034",
+        "text": "¡Hola! Para consultar el estado de tu trámite, por favor responde enviando únicamente tu número de ID de estudiante a continuación.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -720,
+        704
+      ],
+      "id": "081ee43e-740e-4bf9-bec5-9d4ffe604af1",
+      "name": "Send a text message3",
+      "webhookId": "1286ec33-246a-4715-b9f4-5f11f6265d23",
+      "credentials": {
+        "telegramApi": {
+          "id": "A4V1R1OxwGXvPEZG",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "=6878861034",
+        "text": "¡Hola! No he encontrado tu ID de estudiante, verificalo y mandame solo tu ID de estudiante, sin puntos ni comas ni texto.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        1168
+      ],
+      "id": "4d7cc906-e6af-4cea-83f1-e239eaf2fcb3",
+      "name": "Send a text message4",
+      "webhookId": "1286ec33-246a-4715-b9f4-5f11f6265d23",
+      "credentials": {
+        "telegramApi": {
+          "id": "A4V1R1OxwGXvPEZG",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c5e2f429-0e15-4001-bf03-e9faa2680546",
+              "leftValue": "={{ $json.estudiante_ID }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -448,
+        1104
+      ],
+      "id": "4d9dda5f-4b53-405e-a227-7df523cb23e4",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "chatId": "=6878861034",
+        "text": "=¡Hola! El estado de tu solicitud es:  {{ $('Get row(s) in sheet').item.json.estado }}.\nObservaciones: {{ $('Get row(s) in sheet').item.json.observaciones }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        928
+      ],
+      "id": "d0bd9a71-0252-4997-a017-def036e11cb1",
+      "name": "Send a text message5",
+      "webhookId": "1286ec33-246a-4715-b9f4-5f11f6265d23",
+      "credentials": {
+        "telegramApi": {
+          "id": "A4V1R1OxwGXvPEZG",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w",
+          "mode": "list",
+          "cachedResultName": "Proyecto n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gfPvdrvHnWJyxWgctIuzxJabhT2cFlgJwRSlYWO0q-w/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "estudiante_ID",
+              "lookupValue": "={{ $('Telegram Trigger').item.json.message.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -736,
+        1088
+      ],
+      "id": "ae38e0a9-1f35-4fc0-a47d-e80e666cfc2f",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "7vkpQBgp7NFRXKHa",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet2": {
+      "main": [
+        [
+          {
+            "node": "Send a text message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "56d770f2-71ee-47ac-aa5e-f90276fbec41",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bc0ccfd89eb4b73418604f6dcd37b93364b6a813c9d143f7f607ec3e72c16598"
+  },
+  "id": "SnKc8mUt3kifGQCB",
+  "tags": []
+}

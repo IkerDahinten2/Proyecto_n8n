@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Justificación de Inasistencias</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <main class="form-container">
+        <header class="form-header">
+            <h1>Justificación de inasistencias</h1>
+            <p>Por favor, complete los siguientes campos con información verídica para tramitar la revisión de su falta. Adjunte los comprobantes necesarios.</p>
+        </header>
+
+        <form id="inasistencia-form" action="#" method="POST" enctype="multipart/form-data">
+            
+            <div class="form-group">
+                <label for="nombre">Nombre completo</label>
+                <input type="text" id="nombre" name="nombre" placeholder="Ej. Juan Pérez" required>
+            </div>
+
+            <div class="form-group-row">
+                <div class="form-group">
+                    <label for="estudiante-id">ID del estudiante</label>
+                    <input type="text" id="estudiante-id" name="estudiante_id" placeholder="Ej. EST-2026" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="telegram-id">ID de Telegram</label>
+                    <input type="text" id="telegram-id" name="telegram_id" placeholder="Ej. @juanperez">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="correo">Correo electrónico</label>
+                <input type="email" id="correo" name="correo" placeholder="ejemplo@correo.com" required>
+            </div>
+
+            <div class="form-group-row">
+                <div class="form-group">
+                    <label for="motivo">Motivo de inasistencia</label>
+                    <select id="motivo" name="motivo" required>
+                        <option value="" disabled selected>Seleccione una opción</option>
+                        <option value="Médico / Salud">Médico / Salud</option>
+                        <option value="Emergencia Familiar">Emergencia Familiar</option>
+                        <option value="Problemas Técnicos / Conectividad">Problemas Técnicos / Conectividad</option>
+                        <option value="Actividad Institucional">Actividad Institucional</option>
+                        <option value="Otro motivo">Otro motivo</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="fecha">Fecha de la inasistencia</label>
+                    <input type="date" id="fecha" name="fecha" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="descripcion">Descripción del motivo</label>
+                <textarea id="descripcion" name="descripcion" rows="4" placeholder="Detalle brevemente la razón de su falta..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="adjunto" class="file-label">Documentación de respaldo (Imágenes o PDF)</label>
+                <input type="file" id="adjunto" name="adjunto" accept="image/*, .pdf" required>
+                <span class="file-help">Formatos permitidos: JPG, PNG, PDF. Máximo 5MB.</span>
+            </div>
+
+            <button type="submit" class="btn-submit">Enviar formulario</button>
+
+        </form>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
